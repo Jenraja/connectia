@@ -1,0 +1,217 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum Role {
+  CLIENT
+  COMPANY_OWNER
+  COMPANY_EMPLOYEE
+  ADMIN
+}
+
+enum PlanType {
+  FREE
+  PREMIUM
+}
+
+enum SectorCode {
+  JOBS
+  REAL_ESTATE
+  IMMIGRATION
+  INSURANCE
+  AUTO
+}
+
+enum RequestStatus {
+  DRAFT
+  IN_PROGRESS
+  OFFERS_RECEIVED
+  CLOSED
+  CANCELLED
+}
+
+enum OfferStatus {
+  DRAFT
+  SENT
+  RECEIVED
+  SAVED
+  ACCEPTED
+  DECLINED
+  EXPIRED
+}
+
+enum AppointmentStatus {
+  PROPOSED
+  CONFIRMED
+  CANCELLED
+  DONE
+}
+
+model User {
+  id             String          @id @default(cuid())
+  email          String          @unique
+  passwordHash   String
+  role           Role            @default(CLIENT)
+  firstName      String?
+  lastName       String?
+  phone          String?
+  city           String?
+  province       String?
+  country        String?         @default("Canada")
+  language       String?         @default("fr")
+  gender         String?
+  ageRange       String?
+  photoUrl       String?
+  identityStatus String?         @default("PENDING")
+  isActive       Boolean         @default(true)
+  organizationId String?
+  organization   Organization?   @relation(fields: [organizationId], references: [id])
+  requests       Request[]       @relation("ClientRequests")
+  assigned       Request[]       @relation("AssignedRequests")
+  offersSent     Offer[]         @relation("OfferSender")
+  messages       Message[]
+  auditLogs      AuditLog[]
+  createdAt      DateTime        @default(now())
+  updatedAt      DateTime        @updatedAt
+}
+
+model Organization {
+  id              String          @id @default(cuid())
+  name            String
+  sector          SectorCode
+  plan            PlanType        @default(FREE)
+  status          String          @default("PENDING")
+  email           String?
+  phone           String?
+  website         String?
+  city            String?
+  provinceAccess  String[]
+  logoUrl         String?
+  rating          Float           @default(0)
+  employeeLimit   Int             @default(5)
+  employeeSeats   Int             @default(5)
+  isAccessStopped Boolean         @default(false)
+  employees       User[]
+  requests        Request[]
+  offers          Offer[]
+  subscription    Subscription?
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Request {
+  id              String          @id @default(cuid())
+  clientId        String
+  client          User            @relation("ClientRequests", fields: [clientId], references: [id])
+  assignedToId    String?
+  assignedTo      User?           @relation("AssignedRequests", fields: [assignedToId], references: [id])
+  organizationId  String?
+  organization    Organization?   @relation(fields: [organizationId], references: [id])
+  sector          SectorCode
+  type            String
+  title           String
+  summary         String?
+  status          RequestStatus   @default(IN_PROGRESS)
+  province        String?
+  city            String?
+  currency        String          @default("CAD")
+  budgetMin       Float?
+  budgetMax       Float?
+  urgency         String?
+  priorityScore   Int             @default(0)
+  details         Json            @default("{}")
+  documents       Document[]
+  offers          Offer[]
+  appointments    Appointment[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Offer {
+  id              String          @id @default(cuid())
+  requestId       String
+  request         Request         @relation(fields: [requestId], references: [id])
+  organizationId  String
+  organization    Organization    @relation(fields: [organizationId], references: [id])
+  sentById        String?
+  sentBy          User?           @relation("OfferSender", fields: [sentById], references: [id])
+  title           String
+  status          OfferStatus     @default(SENT)
+  price           Float?
+  currency        String          @default("CAD")
+  score           Int             @default(0)
+  benchmark       Json            @default("{}")
+  details         Json            @default("{}")
+  expiresAt       DateTime?
+  appointments    Appointment[]
+  messages        Message[]
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+}
+
+model Appointment {
+  id              String            @id @default(cuid())
+  requestId       String
+  request         Request           @relation(fields: [requestId], references: [id])
+  offerId         String?
+  offer           Offer?            @relation(fields: [offerId], references: [id])
+  title           String
+  startAt         DateTime
+  endAt           DateTime?
+  mode            String?
+  status          AppointmentStatus @default(PROPOSED)
+  contact         Json              @default("{}")
+  createdAt       DateTime          @default(now())
+  updatedAt       DateTime          @updatedAt
+}
+
+model Message {
+  id              String          @id @default(cuid())
+  senderId        String
+  sender          User            @relation(fields: [senderId], references: [id])
+  offerId         String?
+  offer           Offer?          @relation(fields: [offerId], references: [id])
+  requestId       String?
+  text            String
+  isRead          Boolean         @default(false)
+  createdAt       DateTime        @default(now())
+}
+
+model Document {
+  id              String          @id @default(cuid())
+  requestId       String
+  request         Request         @relation(fields: [requestId], references: [id])
+  name            String
+  url             String?
+  status          String          @default("MISSING")
+  createdAt       DateTime        @default(now())
+}
+
+model Subscription {
+  id              String          @id @default(cuid())
+  organizationId  String          @unique
+  organization    Organization    @relation(fields: [organizationId], references: [id])
+  plan            PlanType
+  monthlyAmount   Float
+  currency        String          @default("CAD")
+  employeeSeats   Int             @default(5)
+  status          String          @default("ACTIVE")
+  startedAt       DateTime        @default(now())
+  endedAt         DateTime?
+}
+
+model AuditLog {
+  id              String          @id @default(cuid())
+  actorId         String?
+  actor           User?           @relation(fields: [actorId], references: [id])
+  action          String
+  targetType      String
+  targetId        String?
+  metadata        Json            @default("{}")
+  createdAt       DateTime        @default(now())
+}
